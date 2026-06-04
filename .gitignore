@@ -1,0 +1,17 @@
+# 실제 시크릿이 담기는 설정 (예시 파일만 커밋)
+pipelines/news_brief_config.json
+*.log
+
+# 파이썬
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 백업·임시
+*.bak
+_RESUME*.md.bak

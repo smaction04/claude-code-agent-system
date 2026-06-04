@@ -1,0 +1,7 @@
+{
+  "telegram_token": "여기에-텔레그램-봇토큰 (또는 환경변수 TELEGRAM_TOKEN)",
+  "chat_id": "여기에-받을-chat_id (또는 환경변수 CHAT_ID)",
+  "per_category": 5,
+  "hours": 36,
+  "_설명": "이 파일을 news_brief_config.json 으로 복사한 뒤 값을 채우세요. sources/filters는 생략 시 코드 기본값(경제·부동산·AI) 사용."
+}
