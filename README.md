@@ -9,7 +9,7 @@ Claude Code로 AI 에이전트를 운영하면서 만든 **재사용 가능한 �
 clone 직후 바로 확인하려면:
 
 ```bash
-python verify.py   # 3개 도구를 안전한 dry-run으로 실행 → 전부 PASS면 작동 보장
+python verify.py   # 도구·훅을 안전한 dry-run으로 실행 → 전부 PASS면 작동 보장
 ```
 
 ## 무엇이 들어있나
@@ -21,6 +21,9 @@ python verify.py   # 3개 도구를 안전한 dry-run으로 실행 → 전부 PA
 | **아침 뉴스 브리핑 봇** | `pipelines/news_brief.py` | 경제/부동산/AI 뉴스(RSS)를 모아 텔레그램으로 무인 전송. 외부 의존성 0(파이썬 표준 라이브러리만) |
 | **기업정보 조회 스킬** | `skills/company-info/` | 한국·미국 회사 기업정보를 무료로 끝까지 조회(결제 전 데이터 존재여부 확인) |
 | **디스크 정리 스킬** | `skills/disk-cleanup/` | PC 용량을 실측·등급 분류 후 승인 받아 안전 삭제 |
+| **큰 파일 Read 가드** | `hooks/large_file_guard.py` | 500KB 넘는 파일을 통째로 읽으려 하면 확인을 요청 — 컨텍스트 토큰 대량 낭비 방지 |
+| **넓은 find 가드** | `hooks/bash_scope_guard.py` | 홈/드라이브 루트 전체를 `-maxdepth` 없이 `find`할 때 확인을 요청 |
+| **Serena 상태 표시줄** | `hooks/serena_statusline.py` | 현재 폴더명 + Serena 실행 상태(⚪/🟢/🟡/❓)를 상태줄에 표시 |
 
 ## 빠른 시작
 
@@ -61,6 +64,36 @@ RESUME_PROJECT_ROOT=/path/to/project python pipelines/resume_slim.py
 - **수치를 지어내지 않는다** — 못 얻은 건 "못 얻음"이라고 명시.
 - **파괴적 작업은 승인 후에만** — 삭제·이관은 dry-run이 기본, 실제 적용은 명시할 때만.
 - **무손실** — 백업 먼저, 변경 전후 검증, 실패 시 자동 롤백.
+
+
+## 훅(hooks) 설치 방법
+
+`hooks/`의 세 파일은 Claude Code가 **특정 시점에 자동 실행**하는 안전장치입니다.
+셋 다 표준 라이브러리만 쓰고, 예외가 나면 조용히 통과합니다(세션을 막지 않습니다).
+
+`~/.claude/settings.json`에 등록합니다. 경로는 자기 환경에 맞게 바꾸세요.
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Read",
+        "hooks": [{ "type": "command", "command": "python ~/.claude/hooks/large_file_guard.py" }] },
+      { "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "python ~/.claude/hooks/bash_scope_guard.py" }] }
+    ]
+  },
+  "statusLine": { "type": "command", "command": "python ~/.claude/hooks/serena_statusline.py" }
+}
+```
+
+**설계 의도**: 두 가드는 *차단*이 아니라 *확인 요청*(`ask`)입니다.
+정말 필요하면 승인하고 진행할 수 있고, 무심코 하는 실수만 걸러냅니다.
+임계값은 `large_file_guard.py`의 `THRESHOLD_BYTES`(기본 500KB)에서 조정합니다.
+
+**왜 만들었나**: 셋 다 실제 사고 후에 만든 것입니다.
+189KB 파일을 통째로 읽어 컨텍스트를 대량 소모한 일, 홈 전체를 `find`로 훑어 오래 대기한 일이 계기였습니다.
+Claude Code 자체에는 파일 크기 가드가 없습니다(anthropics/claude-code#22699 — not planned).
 
 ## 라이선스
 

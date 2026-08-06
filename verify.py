@@ -38,6 +38,24 @@ def run(label, args, env=None, expect_code=None, expect_in=None):
     return ok
 
 
+def run_hook(label, script, payload, expect_ask):
+    """훅을 stdin JSON으로 호출하고 ask 여부를 판정."""
+    import json
+    try:
+        p = subprocess.run([PY, script], cwd=ROOT, input=json.dumps(payload),
+                           capture_output=True, text=True, timeout=30)
+    except Exception as e:
+        print(f"  [FAIL] {label}: 실행 예외 {e}")
+        return False
+    out = (p.stdout or "").strip()
+    asked = '"ask"' in out
+    ok = (asked == expect_ask)
+    print(f"  [{'PASS' if ok else 'FAIL'}] {label}")
+    if not ok:
+        print(f"        (기대 ask={expect_ask}, 실제 출력={out[:200]!r})")
+    return ok
+
+
 def main():
     print("claude-code-agent-system — 스모크 테스트")
     print(f"파이썬: {sys.version.split()[0]}  (3.8+ 권장)\n")
@@ -62,6 +80,26 @@ def main():
     env.pop("CHAT_ID", None)
     results.append(run("pipelines/news_brief.py (dry-run)",
                        ["pipelines/news_brief.py"], env=env, expect_in="dry-run"))
+
+    # 4) bash_scope_guard: 홈 루트 find → ask / 좁은 경로 → 통과
+    home = os.path.expanduser("~")
+    results.append(run_hook("hooks/bash_scope_guard.py (홈 전체 find → 확인 요청)",
+                            "hooks/bash_scope_guard.py",
+                            {"tool_input": {"command": f'find {home} -name "*.md"'}}, True))
+    results.append(run_hook("hooks/bash_scope_guard.py (좁은 경로 → 통과)",
+                            "hooks/bash_scope_guard.py",
+                            {"tool_input": {"command": 'find ./src -name "*.py"'}}, False))
+
+    # 5) large_file_guard: 큰 파일 → ask / 작은 파일 → 통과
+    with tempfile.TemporaryDirectory() as td:
+        big = Path(td, "big.txt")
+        big.write_bytes(b"x" * (600 * 1024))
+        results.append(run_hook("hooks/large_file_guard.py (600KB → 확인 요청)",
+                                "hooks/large_file_guard.py",
+                                {"tool_input": {"file_path": str(big)}}, True))
+    results.append(run_hook("hooks/large_file_guard.py (작은 파일 → 통과)",
+                            "hooks/large_file_guard.py",
+                            {"tool_input": {"file_path": str(ROOT / "verify.py")}}, False))
 
     ok = all(results)
     print(f"\n결과: {sum(results)}/{len(results)} PASS — "
